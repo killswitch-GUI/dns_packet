@@ -107,6 +107,90 @@ class dns_struct(object):
             22 : 'BADTRUNC'
     } 
 
+    # rr types
+    RR_TYPE = { 1 : 'A',
+                2 : 'NS',
+                3 : 'MD', 
+                4 : 'MF',
+                5 : 'CNAME',
+                6 : 'SOA',
+                7 : 'MB',
+                8 : 'MG',
+                9 : 'MR',
+                10 : 'NULL',
+                11 : 'WKS',
+                12 : 'PTR',
+                13 : 'HINFO',
+                14 : 'MINFO',
+                15 : 'MX',
+                16 : 'TXT',
+                17 : 'RP',
+                18 : 'AFSDB',
+                19 : 'X25',
+                20 : 'ISDN',
+                21 : 'RT',
+                22 : 'NSAP',
+                23 : 'NSAP-PTR',
+                24 : 'SIG',
+                25 : 'KEY',
+                26 : 'KEY',
+                27 : 'GPOS',
+                28 : 'AAAA',
+                29 : 'LOC',
+                30 : 'NXT',
+                31 : 'EID',
+                32 : 'NETBIOS',
+                33 : 'SRV',
+                34 : 'ATMA',
+                35 : 'NAPTR',
+                36 : 'KX',
+                37 : 'CERT',
+                38 : 'A6',
+                39 : 'DNAME',
+                40 : 'SINK',
+                41 : 'OPT',
+                42 : 'APL',
+                43 : 'DS',
+                44 : 'SSHFP',
+                45 : 'IPSECKEY',
+                46 : 'RRSIG',
+                47 : 'NSEC',
+                48 : 'DNSKEY',
+                49 : 'DHCID',
+                50 : 'NSEC3',
+                51 : 'NSEC3PARAM',
+                52 : 'TLSA',
+                55 : 'HIP',
+                56 : 'NINFO',
+                57 : 'RKEY',
+                58 : 'TALINK',
+                59 : 'CHILD DS',
+                99 : 'SPF',
+                100 : 'UINFO',
+                101 : 'UID',
+                102 : 'GID',
+                103 : 'UNSPEC',
+                249 : 'TKEY',
+                250 : 'TSIG',
+                251 : 'IXFR',
+                252 : 'AXFR',
+                253 : 'MAILB',
+                254 : 'MAILA',
+                255 : '*',
+                256 : 'URI',
+                257 : 'CAA',
+                32768 : 'DNSSECT',
+                32768 : 'DNSSECL'
+    }
+
+    RR_CLASS={  1 : 'IN',
+                3 : 'CH',
+                4 : 'HS',
+                254 : 'NONE',
+                255 : 'ANY'                
+    }
+
+
     _DNS_QUERY_SECTION_FORMAT = struct.Struct("!2H")
 
     def byte_to_binary(self, n):
@@ -203,15 +287,62 @@ class dns_struct(object):
         # |        | their resource record format.
         # --------------------------------------------------------
         answers = []
-        offset_pointer = 0
+        offset_pointer = offset
         for _ in range(arcount):
             # set if we are using 
-            name_pointer = self._check_dns_rr_pointer(data[offset:offset+1])
+            name_pointer = self._check_dns_rr_pointer(data[offset_pointer:offset_pointer+1])
             if name_pointer:
-                self._decode_rr_pointer(data, offset)
+                labels, offset_pointer = self._decode_rr_pointer(data, offset_pointer)
             else:
                 # using label system
-                print self._decode_rr_name_label(data,offset)
+                labels, offset_pointer = self._decode_rr_name_label(data,offset_pointer)
+            rr_type, offset_pointer = self._decode_rr_type(data,offset_pointer)
+            rr_class, offset_pointer = self._decode_rr_class(data,offset_pointer)
+            rr_ttl, offset_pointer = self._decode_rr_ttl(data,offset_pointer)
+            rr_length, offset_pointer = self._decode_rr_length(data,offset_pointer)
+            print {'label':labels,'type':rr_type,'class':rr_class,'ttl':rr_ttl}
+
+    def _decode_rdata(self, data, offset, rr_length, rr_type):
+        """
+        decode resource record types have a specific RDATA 
+        format which reflect their resource record.
+        returns a custom dict object for eacy TYPE
+        """
+
+
+
+    def _decode_rr_length(self, data, offset):
+        """
+        decode the RDLENGTH Unsigned 16-bit value that 
+        defines the length in bytes (octets).
+        """
+        rr_length = struct.unpack('!H',data[offset:offset+2])[0]
+        offset += 2
+        return rr_length, offset
+
+    def _decode_rr_ttl(self, data, offset):
+        """
+        decode the TTL unsigned 32 bit value.
+        """
+        rr_ttl = struct.unpack('!I',data[offset:offset+4])[0]
+        offset += 4
+        return rr_ttl, offset
+
+    def _decode_rr_class(self, data, offset):
+        """
+        decode the Class. 16 bits, unsigned.
+        """
+        rr_class = struct.unpack('!H',data[offset:offset+2])[0]     # Class. 16 bits, unsigned.
+        offset += 2
+        return rr_class, offset 
+
+    def _decode_rr_type(self, data, offset):
+        """
+        decode the type 16 bit int.
+        """
+        rr_type = struct.unpack('!H',data[offset:offset+2])[0]     # Type. 16 bits, unsigned.
+        offset += 2
+        return rr_type, offset
 
 
     def _decode_rr_name_label(self, message, offset):

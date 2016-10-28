@@ -9,8 +9,11 @@ s = socket.socket(socket.AF_PACKET, socket.SOCK_RAW ,socket.ntohs(0x0003))
 while True:
     packet, addr = s.recvfrom(65565)
     print "received message:"
-    upd_packet =  d.unpack_udp(packet[34:])
-    dns_packet =  d.unpack_dns(packet[34:])
+    try:
+    	dns_packet =  d.unpack_dns(packet[34:])
+    except Exception as e:
+    	print e
+    	pass
 
 s = dns_struct.dns_struct()
 byte = b'01'
