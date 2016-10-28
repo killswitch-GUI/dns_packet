@@ -1,3 +1,30 @@
+# Author: Alexander Rymdeko-Harvey(@Killswitch-GUI)
+# File: dns_struct.py 
+# License: BSD 3-Clause
+# Copyright (c) 2016, Alexander Rymdeko-Harvey 
+# All rights reserved. 
+# Redistribution and use in source and binary forms, with or without 
+# modification, are permitted provided that the following conditions are met: 
+#  * Redistributions of source code must retain the above copyright notice, 
+#    this list of conditions and the following disclaimer. 
+#  * Redistributions in binary form must reproduce the above copyright 
+#    notice, this list of conditions and the following disclaimer in the 
+#    documentation and/or other materials provided with the distribution. 
+#  * Neither the name of  nor the names of its contributors may be used to 
+#    endorse or promote products derived from this software without specific 
+#    prior written permission. 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE 
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF 
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN 
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
+# POSSIBILITY OF SUCH DAMAGE.
+
 import struct
 import binascii
 import numpy
@@ -88,6 +115,23 @@ class dns_struct(object):
     def hex_to_binary(self, h):
         return ''.join(self.byte_to_binary(ord(b)) for b in binascii.unhexlify(h))
 
+    def byte_to_hex( self, byteStr ):
+        """
+        Convert a byte string to it's hex string representation e.g. for output.
+        http://code.activestate.com/recipes/510399-byte-to-hex-and-hex-to-byte-string-conversion/
+        """
+        
+        # Uses list comprehension which is a fractionally faster implementation than
+        # the alternative, more readable, implementation below
+        #   
+        #    hex = []
+        #    for aChar in byteStr:
+        #        hex.append( "%02X " % ord( aChar ) )
+        #
+        #    return ''.join( hex ).strip()        
+
+        return ''.join( [ "%02X " % ord( x ) for x in byteStr ] ).strip()
+
     def _unpack_dns_upper_codes(self, byte):
         byte = self.byte_to_hex(byte)
         data = self.hex_to_binary(byte)
@@ -122,6 +166,116 @@ class dns_struct(object):
                     'total_authority_rr':total_authority_rr,
                     'total_additional_rr':total_additional_rr}
         return temp_dns
+
+    def _unpack_dns_rr(self, data, offset, arcount):
+        """
+        Unpakcs the dns resource record that is variable length.
+        Using either the label method or pointer method.
+
+        Takes:
+        data = byte data from dns packet
+        offset = int offset from query struc
+        arcount = int specifying the number of resource records
+        """
+        # --------------------------------------------------------
+        # |        | This name reflects the QNAME of the question  
+        # |  Name  | i.e. any may take one of TWO formats.
+        # |        | (label format defined for QNAME or pointer )
+        # --------------------------------------------------------
+        # |        | Unsigned 16 bit value. The resource record  
+        # |  Type  | types - determines the content of the RDATA
+        # |        | field.
+        # --------------------------------------------------------
+        # |        | Unsigned 16 bit value. The CLASS of resource 
+        # | Class  | records being requested, for example, 
+        # |        | Internet, CHAOS etc.
+        # --------------------------------------------------------
+        # |        | Unsigned 32 bit value. The time in seconds 
+        # |   TTL  | that the record may be cached. A value of 0 
+        # |        | indicates the record should not be cached.
+        # --------------------------------------------------------
+        # |        | Unsigned 16-bit value that defines the length 
+        # |RDLENGTH| in bytes (octets) of the RDATA record.
+        # |        |
+        # --------------------------------------------------------
+        # |        | Each (or rather most) resource record types 
+        # |  RDATA | have a specific RDATA format which reflect 
+        # |        | their resource record format.
+        # --------------------------------------------------------
+        answers = []
+        offset_pointer = 0
+        for _ in range(arcount):
+            # set if we are using 
+            name_pointer = self._check_dns_rr_pointer(data[offset:offset+1])
+            if name_pointer:
+                self._decode_rr_pointer(data, offset)
+            else:
+                # using label system
+                print self._decode_rr_name_label(data,offset)
+
+
+    def _decode_rr_name_label(self, message, offset):
+        """
+        decode a label format rr 
+        """
+        labels = []
+        while True:
+            length, = struct.unpack_from("!B", message, offset)
+            offset += 1
+            if length == 0:
+                return labels, offset
+            labels.append(*struct.unpack_from("!%ds" % length, message, offset))
+            offset += length
+
+    def _decode_rr_pointer(self, data, offset):
+        """
+        decode the pointer loction and parse
+        the lable associated.
+        takes:
+        data = byte data
+        offset = offset to start of pointer tag
+        """ 
+        # DNS Name type decode using bit type:
+        # --------------------------------------------------------------------
+        # | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 |15
+        # -------------------------
+        # | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0  | 0  | 1  | 1  | 0  |0
+        # --------------------------------------------------------------------
+        # == 0x0c = 12 byte offset
+        # 16 bit int that 2-15 bit locations are the offset from start 
+        # of the dns packet
+        octet = data[offset:offset+2]
+        octet = self.byte_to_hex(octet)
+        octet = self.hex_to_binary(str(octet))
+        # calculate the offset in binary
+        print octet
+        #self.decode_labels(data, )
+
+    def _check_dns_rr_pointer(self, byte):
+        """
+        check if byte is a pointer or lable type.
+        takes:
+        byte = a single byte of data to check 
+
+        returns:
+        bool = true or false
+        """
+        # DNS Name type decode using bit type:
+        # -------------------------
+        # | 0 | 1 | 2 | 3 | 4 etc..
+        # -------------------------
+        # | 1 | 1 | 0 | 0 | 0 etc..
+        # -------------------------
+        # if first two bits are set we are using a pointer type
+        # for data compression 
+
+        byte = self.byte_to_hex(byte)
+        data = self.hex_to_binary(str(byte))
+        if data[0:1] == 1 and data[1:2] == 1:
+            return True
+        else:
+            return False
+
 
     def decode_labels(self, message, offset):
         labels = []
@@ -163,24 +317,6 @@ class dns_struct(object):
 
         return questions, offset
 
-    def byte_to_hex( self, byteStr ):
-        """
-        Convert a byte string to it's hex string representation e.g. for output.
-        http://code.activestate.com/recipes/510399-byte-to-hex-and-hex-to-byte-string-conversion/
-        """
-        
-        # Uses list comprehension which is a fractionally faster implementation than
-        # the alternative, more readable, implementation below
-        #   
-        #    hex = []
-        #    for aChar in byteStr:
-        #        hex.append( "%02X " % ord( aChar ) )
-        #
-        #    return ''.join( hex ).strip()        
-
-        return ''.join( [ "%02X " % ord( x ) for x in byteStr ] ).strip()
-
-
     def unpack_udp(self, data):
         source_port = struct.unpack('!H',data[:2])[0]           # Source Port. 16 bits.
         destination_port = struct.unpack('!H',data[2:4])[0]     # Destination Port. 16 bits.
@@ -202,8 +338,8 @@ class dns_struct(object):
         uper_dict = self._unpack_dns_upper_codes(data[11:12])
         dns_data = self._upack_dns_codes(data)
         dns_questions, question_offset = self.decode_question_section(data, 20, dns_data['total_questions'])
-        print dns_questions
-        print question_offset
+        if dns_data['total_answers_rr']:
+            self._unpack_dns_rr(data, question_offset, dns_data['total_answers_rr'])
         # build the return data
         dns_dict = lower_dict.copy()
         dns_dict.update(uper_dict)
