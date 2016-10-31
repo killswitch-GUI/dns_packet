@@ -417,8 +417,6 @@ class dns_struct(object):
         # == 0x0c = 12 byte offset
         # 16 bit int that 2-15 bit locations are the offset from start 
         # of the dns packet
-        octet = data[offset:offset+1]
-        i = ord(octet)
         p, = struct.unpack_from("!H", data, offset)
         value = p & 0x3FFF
         value = value - 2
