@@ -28,12 +28,14 @@
 import struct
 import binascii
 import numpy
+import socket
 
 class dns_struct(object):
     """
     Base class for all class objects in the project,
     this will define the needed structure types and 
     ability to decode them.
+    https://tools.ietf.org/html/rfc1035#section-4.1.4
     """
 
     # QR, Query/Response. 1 bit.
@@ -292,7 +294,9 @@ class dns_struct(object):
             # set if we are using 
             name_pointer = self._check_dns_rr_pointer(data[offset_pointer:offset_pointer+1])
             if name_pointer:
+                # use pointer system
                 labels, offset_pointer = self._decode_rr_pointer(data, offset_pointer)
+                #print self.decode_labels(data,offset_pointer)
             else:
                 # using label system
                 labels, offset_pointer = self._decode_rr_name_label(data,offset_pointer)
@@ -300,7 +304,9 @@ class dns_struct(object):
             rr_class, offset_pointer = self._decode_rr_class(data,offset_pointer)
             rr_ttl, offset_pointer = self._decode_rr_ttl(data,offset_pointer)
             rr_length, offset_pointer = self._decode_rr_length(data,offset_pointer)
-            print {'label':labels,'type':rr_type,'class':rr_class,'ttl':rr_ttl}
+            rr_rdata, offset_pointer = self._decode_rdata(data, offset_pointer, rr_length, rr_type)
+            answers.append({'label':labels,'type':rr_type,'class':rr_class,'ttl':rr_ttl,'rdata':rr_rdata})
+        return answers
 
     def _decode_rdata(self, data, offset, rr_length, rr_type):
         """
@@ -308,8 +314,40 @@ class dns_struct(object):
         format which reflect their resource record.
         returns a custom dict object for eacy TYPE
         """
+        if self.RR_TYPE[rr_type] == self.RR_TYPE[1]:
+            # A record
+            rdata = self._decode_rdata_a(data, offset, rr_length)
+        if self.RR_TYPE[rr_type] == self.RR_TYPE[28]:
+            # AAAA record
+            rdata = self._decode_rdata_aaaa(data, offset, rr_length)
+        if self.RR_TYPE[rr_type] == self.RR_TYPE[16]:
+            # TXT record
+            rdata = self._decode_rdata_txt(data, offset, rr_length)
+        offset += rr_length
+        return rdata, offset
 
+    def _decode_rdata_txt(self, data, offset, rr_length):
+        """
+        decode rdata TXT record.
+        """
+        txt = struct.unpack('!%ds' % rr_length,data[offset:offset+rr_length])[0]
+        return txt
 
+    def _decode_rdata_aaaa(self, data, offset, rr_length):
+        """
+        decode rdata AAAA record.
+        """
+        # TODO: add in AAAA support 
+        # IP Address    16 octets representing the IP address
+        ipv6 = struct.unpack('!QQ', socket.inet_pton(socket.AF_INET6, data[offset:offset+rr_length]))
+        return ipv6
+
+    def _decode_rdata_a(self, data, offset, rr_length):
+        """
+        decode rdata A record.
+        """
+        # IP Address   Unsigned 32-bit value representing the IP address
+        return socket.inet_ntoa(data[offset:offset+rr_length])
 
     def _decode_rr_length(self, data, offset):
         """
@@ -349,6 +387,9 @@ class dns_struct(object):
         """
         decode a label format rr 
         """
+        #print 'total bytes: ' + str(len(message))
+        #print 'offset: ' + str(offset)
+        #print 'byte: ' + self.byte_to_hex(message[offset:offset+5])
         labels = []
         while True:
             length, = struct.unpack_from("!B", message, offset)
@@ -366,6 +407,7 @@ class dns_struct(object):
         data = byte data
         offset = offset to start of pointer tag
         """ 
+        # https://tools.ietf.org/html/rfc1035#section-4.1.4
         # DNS Name type decode using bit type:
         # --------------------------------------------------------------------
         # | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 |15
@@ -375,12 +417,15 @@ class dns_struct(object):
         # == 0x0c = 12 byte offset
         # 16 bit int that 2-15 bit locations are the offset from start 
         # of the dns packet
-        octet = data[offset:offset+2]
-        octet = self.byte_to_hex(octet)
-        octet = self.hex_to_binary(str(octet))
-        # calculate the offset in binary
-        print octet
-        #self.decode_labels(data, )
+        octet = data[offset:offset+1]
+        i = ord(octet)
+        p, = struct.unpack_from("!H", data, offset)
+        value = p & 0x3FFF
+        value = value - 2
+        value = value * 2
+        offset += 2
+        label, return_offset = self._decode_rr_name_label(data,value)
+        return label, offset
 
     def _check_dns_rr_pointer(self, byte):
         """
@@ -402,7 +447,7 @@ class dns_struct(object):
 
         byte = self.byte_to_hex(byte)
         data = self.hex_to_binary(str(byte))
-        if data[0:1] == 1 and data[1:2] == 1:
+        if data[0:1] == '1' and data[1:2] == '1':
             return True
         else:
             return False
@@ -410,7 +455,6 @@ class dns_struct(object):
 
     def decode_labels(self, message, offset):
         labels = []
-
         while True:
             length, = struct.unpack_from("!B", message, offset)
 
@@ -466,15 +510,16 @@ class dns_struct(object):
         """
         # TODO: can you copy() from a function return data?
         lower_dict = self._unpack_dns_lower_codes(data[10:11])
+        dns_dict = lower_dict.copy()
         uper_dict = self._unpack_dns_upper_codes(data[11:12])
+        dns_dict.update(uper_dict)
         dns_data = self._upack_dns_codes(data)
+        dns_dict.update(dns_data)
         dns_questions, question_offset = self.decode_question_section(data, 20, dns_data['total_questions'])
         if dns_data['total_answers_rr']:
-            self._unpack_dns_rr(data, question_offset, dns_data['total_answers_rr'])
+            answers_dict = self._unpack_dns_rr(data, question_offset, dns_data['total_answers_rr'])
+            dns_dict.update({'answer':answers_dict})
         # build the return data
-        dns_dict = lower_dict.copy()
-        dns_dict.update(uper_dict)
-        dns_dict.update(dns_data)
         return dns_dict
         
         

@@ -10,7 +10,8 @@ while True:
     packet, addr = s.recvfrom(65565)
     print "received message:"
     try:
-    	dns_packet =  d.unpack_dns(packet[34:])
+    	dp =  d.unpack_dns(packet[34:])
+    	print dp
     except Exception as e:
     	print e
     	pass
