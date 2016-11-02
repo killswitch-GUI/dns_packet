@@ -34,7 +34,7 @@ class byte_opperations(object):
     """
     def __init__(self, verbose=False):
         """
-        populates init.
+        populates init. test
         """
         pass
 
