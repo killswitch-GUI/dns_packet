@@ -27,7 +27,6 @@
 
 import struct
 import binascii
-import numpy
 import socket
 import dns_helpers
 

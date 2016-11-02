@@ -8,5 +8,4 @@ from dns_packet import dns_helpers
 def test_helpers():
 	# test helpers class
 	d = dns_helpers.byte_opperations()
-	
-	assert d.hex_to_binary('0101') == 5 
+	assert d.hex_to_binary('1E') == '00011110'
