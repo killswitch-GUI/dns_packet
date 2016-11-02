@@ -29,13 +29,184 @@ import struct
 import binascii
 import numpy
 import socket
+import dns_helpers
 
-class dns_struct(object):
+class dns_encode_struct(dns_helpers.byte_opperations):
+    """
+    base class for all encode objects with
+    proper ability to build DNS packet structure
+    """
+    # QR, Query/Response. 1 bit.
+    QR = {  0 : 'QUERY',
+            1 : 'RESPONSE'
+    }
+
+    # Opcode. 4 bits.
+    OPCODE = {  0 : 'QUERY',
+                1 : 'IQUERY',
+                2 : 'STATUS',
+                4 : 'NOTIFY',
+                5 : 'UPDATE'
+    }
+
+    # AA, Authoritative Answer. 1 bit.
+    #  Specifies that the responding name server is an authority for the domain name in question section. 
+    #  Note that the contents of the answer section may have multiple owner names because of aliases. 
+    #  This bit corresponds to the name which matches the query name, or the first owner name in the answer section.
+    AA = {  0 : 'NOT AUTHORITATIVE',
+            1 : 'AUTHORITATIVE'
+    }
+
+    # TC, Truncated. 1 bit.
+    #  Indicates that only the first 512 bytes of the reply was returned.
+    TC = {  0 : 'NOT TRUNCATED',
+            1 : 'TRUNCATED'
+    }
+
+    # RD, Recursion Desired. 1 bit.
+    #  May be set in a query and is copied into the response. 
+    #  If set, the name server is directed to pursue the query recursively. 
+    #  Recursive query support is optional.
+    RD = {  0 : 'NOT DESIRED',
+            1 : 'DESIRED'
+    }
+
+    # RA, Recursion Available. 1 bit.
+    #  Indicat es if recursive query support is available in the name server.
+    RA = {  0 : 'NOT AVAILABLE',
+            1 : 'AVAILABLE'
+    }
+
+    # Z. 1 bit.
+    Z = {} 
+
+    # AD, Authenticated data. 1 bit.
+    AD = {} 
+
+    # CD, Checking Disabled. 1 bit.
+    CD = {}
+
+    # Rcode, Return code. 4 bits.
+    RC = {  0 : 'NO ERROR',
+            1 : 'FORMAT ERROR',
+            2 : 'SERVER FAILURE',
+            3 : 'NAME ERROR',
+            4 : 'NOT IMPLEMENTED',
+            5 : 'REFUSED',
+            6 : 'YXDOMAIN',
+            7 : 'YXRRSET',
+            8 : 'NXRRSET',
+            9 : 'NOTAUTH',
+            10 : 'NOTZONE',
+            16 : 'BADVERS',
+            17 : 'BADKEY',
+            18 : 'BADTIME',
+            19 : 'BADMODE',
+            20 : 'BADNAME', 
+            21 : 'BADALG', 
+            22 : 'BADTRUNC'
+    } 
+
+    # rr types
+    RR_TYPE = { 1 : 'A',
+                2 : 'NS',
+                3 : 'MD', 
+                4 : 'MF',
+                5 : 'CNAME',
+                6 : 'SOA',
+                7 : 'MB',
+                8 : 'MG',
+                9 : 'MR',
+                10 : 'NULL',
+                11 : 'WKS',
+                12 : 'PTR',
+                13 : 'HINFO',
+                14 : 'MINFO',
+                15 : 'MX',
+                16 : 'TXT',
+                17 : 'RP',
+                18 : 'AFSDB',
+                19 : 'X25',
+                20 : 'ISDN',
+                21 : 'RT',
+                22 : 'NSAP',
+                23 : 'NSAP-PTR',
+                24 : 'SIG',
+                25 : 'KEY',
+                26 : 'KEY',
+                27 : 'GPOS',
+                28 : 'AAAA',
+                29 : 'LOC',
+                30 : 'NXT',
+                31 : 'EID',
+                32 : 'NETBIOS',
+                33 : 'SRV',
+                34 : 'ATMA',
+                35 : 'NAPTR',
+                36 : 'KX',
+                37 : 'CERT',
+                38 : 'A6',
+                39 : 'DNAME',
+                40 : 'SINK',
+                41 : 'OPT',
+                42 : 'APL',
+                43 : 'DS',
+                44 : 'SSHFP',
+                45 : 'IPSECKEY',
+                46 : 'RRSIG',
+                47 : 'NSEC',
+                48 : 'DNSKEY',
+                49 : 'DHCID',
+                50 : 'NSEC3',
+                51 : 'NSEC3PARAM',
+                52 : 'TLSA',
+                55 : 'HIP',
+                56 : 'NINFO',
+                57 : 'RKEY',
+                58 : 'TALINK',
+                59 : 'CHILD DS',
+                99 : 'SPF',
+                100 : 'UINFO',
+                101 : 'UID',
+                102 : 'GID',
+                103 : 'UNSPEC',
+                249 : 'TKEY',
+                250 : 'TSIG',
+                251 : 'IXFR',
+                252 : 'AXFR',
+                253 : 'MAILB',
+                254 : 'MAILA',
+                255 : '*',
+                256 : 'URI',
+                257 : 'CAA',
+                32768 : 'DNSSECT',
+                32768 : 'DNSSECL'
+    }
+
+    RR_CLASS={  1 : 'IN',
+                3 : 'CH',
+                4 : 'HS',
+                254 : 'NONE',
+                255 : 'ANY'                
+    }
+
+
+    def __init__(self, verbose=False):
+        """
+        populates init.
+        """
+        slef.verbose = False
+
+
+
+class dns_decode_struct(dns_helpers.byte_opperations):
     """
     Base class for all class objects in the project,
     this will define the needed structure types and 
     ability to decode them.
     https://tools.ietf.org/html/rfc1035#section-4.1.4
+    http://www.zytrax.com/books/dns/ch15/#rdata
+    http://www.networksorcery.com/enp/protocol/dns.htm#Answer%20RRs
     """
 
     # QR, Query/Response. 1 bit.
@@ -195,28 +366,12 @@ class dns_struct(object):
 
     _DNS_QUERY_SECTION_FORMAT = struct.Struct("!2H")
 
-    def byte_to_binary(self, n):
-        return ''.join(str((n & (1 << i)) and 1) for i in reversed(range(8)))
-
-    def hex_to_binary(self, h):
-        return ''.join(self.byte_to_binary(ord(b)) for b in binascii.unhexlify(h))
-
-    def byte_to_hex( self, byteStr ):
+    def __init__(self, verbose=False):
         """
-        Convert a byte string to it's hex string representation e.g. for output.
-        http://code.activestate.com/recipes/510399-byte-to-hex-and-hex-to-byte-string-conversion/
+        populates init.
         """
-        
-        # Uses list comprehension which is a fractionally faster implementation than
-        # the alternative, more readable, implementation below
-        #   
-        #    hex = []
-        #    for aChar in byteStr:
-        #        hex.append( "%02X " % ord( aChar ) )
-        #
-        #    return ''.join( hex ).strip()        
+        dns_helpers.byte_opperations.__init__(self)
 
-        return ''.join( [ "%02X " % ord( x ) for x in byteStr ] ).strip()
 
     def _unpack_dns_upper_codes(self, byte):
         byte = self.byte_to_hex(byte)
@@ -306,7 +461,31 @@ class dns_struct(object):
             rr_length, offset_pointer = self._decode_rr_length(data,offset_pointer)
             rr_rdata, offset_pointer = self._decode_rdata(data, offset_pointer, rr_length, rr_type)
             answers.append({'label':labels,'type':rr_type,'class':rr_class,'ttl':rr_ttl,'rdata':rr_rdata})
-        return answers
+        return answers, offset_pointer
+
+    def _unpack_dns_additional_rr(self, data,offset, arcount):
+        """
+        decode additional records have exactly the same format as Answer records it is simply their 
+        position in an additional section that determines they are additional records.
+        """
+        additional_answer = []
+        offset_pointer = offset
+        for _ in range(arcount):
+            #name_pointer = self._check_dns_rr_pointer(data[offset_pointer:offset_pointer+1])
+            #if name_pointer:
+                # use pointer system
+            #    labels, offset_pointer = self._decode_rr_pointer(data, offset_pointer)
+                #print self.decode_labels(data,offset_pointer)
+            #else:
+            #    # using label system
+            labels, offset_pointer = self.decode_labels(data,offset_pointer)
+            rr_type, offset_pointer = self._decode_rr_type(data,offset_pointer)
+            rr_class, offset_pointer = self._decode_rr_class(data,offset_pointer)
+            rr_ttl, offset_pointer = self._decode_rr_ttl(data,offset_pointer)
+            rr_length, offset_pointer = self._decode_rr_length(data,offset_pointer)
+            rr_rdata, offset_pointer = self._decode_rdata(data, offset_pointer, rr_length, rr_type)
+            additional_answer.append({'label':labels,'type':rr_type,'class':rr_class,'ttl':rr_ttl,'rdata':rr_rdata})
+        return additional_answer, offset_pointer
 
     def _decode_rdata(self, data, offset, rr_length, rr_type):
         """
@@ -314,6 +493,7 @@ class dns_struct(object):
         format which reflect their resource record.
         returns a custom dict object for eacy TYPE
         """
+        rdata = {}
         if self.RR_TYPE[rr_type] == self.RR_TYPE[1]:
             # A record
             rdata = self._decode_rdata_a(data, offset, rr_length)
@@ -323,8 +503,43 @@ class dns_struct(object):
         if self.RR_TYPE[rr_type] == self.RR_TYPE[16]:
             # TXT record
             rdata = self._decode_rdata_txt(data, offset, rr_length)
+        if self.RR_TYPE[rr_type] == self.RR_TYPE[15]:
+            # MX record
+            rdata = self._decode_rdata_mx(data, offset, rr_length)
+        if self.RR_TYPE[rr_type] == self.RR_TYPE[6]:
+            # SOA record
+            rdata = self._decode_rdata_soa(data, offset, rr_length)
+        if self.RR_TYPE[rr_type] == self.RR_TYPE[2]:
+            # NS record 
+            rdata = self._decode_rdata_ns(data, offset, rr_length)
         offset += rr_length
         return rdata, offset
+
+    def _decode_rdata_soa(self, data, offset, rr_length):
+        """
+        decode a soa record
+        """
+        # Primary NS  Variable length. The name of the Primary Master for the domain. 
+        #   May be a label, pointer or any combination.
+        # Admin MB    Variable length. The administrator's mailbox. 
+        #   May be a label, pointer or any combination.
+        # Serial Number   Unsigned 32-bit integer.
+        # Refresh interval    Unsigned 32-bit integer.
+        # Retry Interval  Unsigned 32-bit integer.
+        # Expiration Limit    Unsigned 32-bit integer.
+        # Minimum TTL Unsigned 32-bit integer.
+        primary_ns, offset = self.decode_labels(data, offset)
+        admin_mb, offset = self.decode_labels(data, offset)
+        serial = struct.unpack('!L',data[offset:offset+4])[0] 
+        offset += 4
+        refresh = struct.unpack('!L',data[offset:offset+4])[0] 
+        offset += 4
+        retry = struct.unpack('!L',data[offset:offset+4])[0] 
+        offset += 4
+        expiration = struct.unpack('!L',data[offset:offset+4])[0] 
+        offset += 4
+        min_ttl = struct.unpack('!L',data[offset:offset+4])[0] 
+        return {'ns':primary_ns,'mb':admin_mb,'serial':serial,'refresh':refresh,'retry':retry,'expiration':expiration,'ttl':min_ttl}
 
     def _decode_rdata_txt(self, data, offset, rr_length):
         """
@@ -339,8 +554,8 @@ class dns_struct(object):
         """
         # TODO: add in AAAA support 
         # IP Address    16 octets representing the IP address
-        ipv6 = struct.unpack('!QQ', socket.inet_pton(socket.AF_INET6, data[offset:offset+rr_length]))
-        return ipv6
+        #ipv6 = struct.unpack('!QQ', data[offset:offset+rr_length])[0]
+        return socket.inet_ntop(socket.AF_INET6, str(data[offset:offset+rr_length]))
 
     def _decode_rdata_a(self, data, offset, rr_length):
         """
@@ -348,6 +563,30 @@ class dns_struct(object):
         """
         # IP Address   Unsigned 32-bit value representing the IP address
         return socket.inet_ntoa(data[offset:offset+rr_length])
+
+    def _decode_rdata_ns(self, data, offset, rr_length):
+        """
+        decode rdata NS record
+        """
+        # Name May be a label, pointer or any combination.
+        return self.decode_labels(data, offset)
+
+    def _decode_rdata_mx(self, data, offset, rr_length):
+        """
+        decode rdata MX record.
+        """
+        # Preference      Unsigned 16-bit integer.
+        # Mail Exchanger  The name host name that provides the service. May be a label, pointer or any combination.
+
+        pref = struct.unpack('!H',data[offset:offset+2])[0]
+        offset += 2
+        if self._check_dns_rr_pointer(data[offset:offset+1]):
+            # name pointer used
+            offset += 1
+            mail_exch, offset = self._decode_rr_pointer(data, offset)
+        else:
+            mail_exch, offset = self.decode_labels(data,offset)
+        return {'prefrence':pref, 'mx':mail_exch}
 
     def _decode_rr_length(self, data, offset):
         """
@@ -388,8 +627,7 @@ class dns_struct(object):
         decode a label format rr 
         """
         #print 'total bytes: ' + str(len(message))
-        #print 'offset: ' + str(offset)
-        #print 'byte: ' + self.byte_to_hex(message[offset:offset+5])
+
         labels = []
         while True:
             length, = struct.unpack_from("!B", message, offset)
@@ -459,8 +697,11 @@ class dns_struct(object):
             if (length & 0xC0) == 0xC0:
                 pointer, = struct.unpack_from("!H", message, offset)
                 offset += 2
-
-                return labels + self.decode_labels(message, pointer & 0x3FFF), offset
+                pointer = pointer & 0x3FFF
+                pointer += 8
+                l, off = self.decode_labels(message, pointer)
+                labels += l
+                return labels, offset
 
             if (length & 0xC0) != 0x00:
                 raise StandardError("unknown label encoding")
@@ -469,7 +710,6 @@ class dns_struct(object):
 
             if length == 0:
                 return labels, offset
-
             labels.append(*struct.unpack_from("!%ds" % length, message, offset))
             offset += length
 
@@ -506,17 +746,22 @@ class dns_struct(object):
         returns:
         dns_dict = a full decoded dict of the dns packet struc.
         """
-        # TODO: can you copy() from a function return data?
+        # TODO: can you copy() from a function return s?s
         lower_dict = self._unpack_dns_lower_codes(data[10:11])
         dns_dict = lower_dict.copy()
         uper_dict = self._unpack_dns_upper_codes(data[11:12])
         dns_dict.update(uper_dict)
         dns_data = self._upack_dns_codes(data)
         dns_dict.update(dns_data)
-        dns_questions, question_offset = self.decode_question_section(data, 20, dns_data['total_questions'])
+        dns_questions, offset_pointer = self.decode_question_section(data, 20, dns_data['total_questions'])
         if dns_data['total_answers_rr']:
-            answers_dict = self._unpack_dns_rr(data, question_offset, dns_data['total_answers_rr'])
+            answers_dict, offset_pointer = self._unpack_dns_rr(data, offset_pointer, dns_data['total_answers_rr'])
             dns_dict.update({'answer':answers_dict})
+        if dns_data['total_authority_rr']:
+            pass
+        if dns_data['total_additional_rr']:
+            additional_dict, offset_pointer = self._unpack_dns_additional_rr(data, offset_pointer, dns_data['total_additional_rr'])
+            dns_dict.update({'additional_answer':additional_dict})
         # build the return data
         return dns_dict
         
