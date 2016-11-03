@@ -3,8 +3,8 @@ sudo: required
 python:
   - "2.7"
 script:
-  - pip install coveralls
-  - pip install coverage
-  - nosetests --with-coverage
+  - sudo pip install coveralls
+  - sudo pip install coverage
+  - sudo nosetests --with-coverage
 after_success:
-  - coveralls
+  - sudo coveralls
