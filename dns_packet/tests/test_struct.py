@@ -21,7 +21,7 @@ def test_dns_unpack():
 	checksum = 0
 	udp_header = struct.pack('!HHHH', sport, dport, length, checksum)
 	udp_ret = d.unpack_udp(udp_header)
-	assert udp_ret.['src_port'] == sport
-	assert udp_ret.['dst_port'] == dport
-	assert udp_ret.['length'] == length
-	assert udp_ret.['check_sum'] == checksum
+	assert udp_ret['src_port'] == sport
+	assert udp_ret['dst_port'] == dport
+	assert udp_ret['length'] == length
+	assert udp_ret['check_sum'] == checksum
