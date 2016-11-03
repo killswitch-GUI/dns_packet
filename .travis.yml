@@ -5,6 +5,6 @@ python:
 script:
   - sudo pip install coveralls
   - sudo pip install coverage
-  - sudo nosetests --with-coverage
+  - nosetests --with-coverage
 after_success:
-  - sudo coveralls
+  - coveralls
