@@ -10,6 +10,7 @@ s = socket.socket(socket.AF_PACKET, socket.SOCK_RAW ,socket.ntohs(0x0003))
 while True:
 	try:
 	    packet, addr = s.recvfrom(65565)
+	    print type(packet)
 	    print "received message:"
 	    # 42 for real value
 	    dp =  d.unpack_dns(packet[34:])
