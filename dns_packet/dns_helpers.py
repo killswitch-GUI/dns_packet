@@ -26,6 +26,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 import struct
 import binascii
+import array
 
 class byte_opperations(object):
     """
@@ -60,3 +61,51 @@ class byte_opperations(object):
         #    return ''.join( hex ).strip()        
 
         return ''.join( [ "%02X " % ord( x ) for x in byteStr ] ).strip()
+
+class buffer(object):
+
+    """
+    buffer object for pointer
+    """
+
+    _START_POINTER = 0      # Poniter starter value
+
+    _BUFFER_SIZE = 512      # Bytes
+
+    def __init__(self, buffer_offset=self._START_POINTER, buffer_size=self._BUFFER_SIZE, verbose=False):
+        """
+        populates init, builds buffer object.
+        example calls: struct.pack_into(fmt, buffer, offset, v1, v2, ...)
+        """
+        self.verbose = False
+        self.offset = buffer_offset
+        self.buffer = self.build_buffer(buffer_size=buffer_size)
+
+    def build_buffer(self, buffer_size=self._BUFFER_SIZE):
+        """
+        build the fast buffer array.
+
+        returns: 
+        aray buffer object
+        """
+        buffer_size = buffer_size * 2
+        return array.array('c', ' ' * buffer_size)
+        
+    def increment_pointer(self, increment):
+        """
+        increment buffer pointer object
+        """
+        self.offset += increment
+
+    def decrement_pointer(self, decrement):
+        """
+        decrement buffer pointer object
+        """
+        self.offset -= decrement
+
+    def rest_pointer(self, value=self._START_POINTER):
+        """
+        reset to defualt calue
+        """
+
+        self.offset = self._START_POINTER

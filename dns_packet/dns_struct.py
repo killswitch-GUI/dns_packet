@@ -30,7 +30,10 @@ import binascii
 import socket
 import dns_helpers
 
-class dns_encode_struct(dns_helpers.byte_opperations):
+
+
+
+class dns_encode_struct(dns_helpers.byte_opperations, dns_helpers.buffer):
     """
     base class for all encode objects with
     proper ability to build DNS packet structure
@@ -195,6 +198,26 @@ class dns_encode_struct(dns_helpers.byte_opperations):
         populates init.
         """
         slef.verbose = False
+        dns_helpers.byte_opperations.__init__(self)
+        dns_helpers.buffer.__init__(self)
+
+
+    def pack_udp(self, source_port, destination_port):
+        """
+        pack a udp packet and return the object.
+        """
+
+
+    def unpack_udp(self, data):
+        source_port = struct.unpack('!H',data[:2])[0]           # Source Port. 16 bits.
+        destination_port = struct.unpack('!H',data[2:4])[0]     # Destination Port. 16 bits.
+        length = struct.unpack('!H',data[4:6])[0]               # Destination Port. 16 bits.
+        checksum = struct.unpack('!H',data[6:8])[0]             # Checksum. 16 bits.
+        return {'src_port' : source_port, 'dst_port' : destination_port, 'length' : length, 'check_sum' : checksum}
+
+
+
+
 
 
 
@@ -364,6 +387,7 @@ class dns_decode_struct(dns_helpers.byte_opperations):
 
 
     _DNS_QUERY_SECTION_FORMAT = struct.Struct("!2H")
+
 
     def __init__(self, verbose=False):
         """
