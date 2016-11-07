@@ -192,31 +192,41 @@ class dns_encode_struct(dns_helpers.byte_opperations, dns_helpers.buffer):
                 255 : 'ANY'                
     }
 
+    TYPE_CODE = {   'c' : 1,
+                    'b' : 1,
+                    'B' : 1,
+                    'u' : 2,
+                    'h' : 2,
+                    'H' : 2,
+                    'i' : 2,
+                    'I' : 2,
+                    'l' : 4,
+                    'L' : 4,
+                    'f' : 4,
+                    'd' : 8, 
+    }
 
     def __init__(self, verbose=False):
         """
         populates init.
         """
-        slef.verbose = False
+        self.verbose = False
         dns_helpers.byte_opperations.__init__(self)
         dns_helpers.buffer.__init__(self)
 
 
-    def pack_udp(self, source_port, destination_port):
+    def pack_udp(self, source_port, destination_port, length, checksum):
         """
         pack a udp packet and return the object.
         """
-
-
-    def unpack_udp(self, data):
-        source_port = struct.unpack('!H',data[:2])[0]           # Source Port. 16 bits.
-        destination_port = struct.unpack('!H',data[2:4])[0]     # Destination Port. 16 bits.
-        length = struct.unpack('!H',data[4:6])[0]               # Destination Port. 16 bits.
-        checksum = struct.unpack('!H',data[6:8])[0]             # Checksum. 16 bits.
-        return {'src_port' : source_port, 'dst_port' : destination_port, 'length' : length, 'check_sum' : checksum}
-
-
-
+        self.pack_buffer(source_port, 'H')           # Source Port. 16 bits.
+        self.increment_pointer(self.TYPE_CODE['H'])
+        self.pack_buffer(destination_port, 'H')      # Destination Port. 16 bits.
+        self.increment_pointer(self.TYPE_CODE['H'])
+        self.pack_buffer(length, 'H')                # UDP and Data Length. 16 bits.
+        self.increment_pointer(self.TYPE_CODE['H'])
+        self.pack_buffer(checksum, 'H')              # Checksum. 16 bits.
+        self.increment_pointer(self.TYPE_CODE['H'])  
 
 
 
