@@ -43,6 +43,10 @@ class byte_opperations(object):
         return ''.join(str((n & (1 << i)) and 1) for i in reversed(range(8)))
 
     def hex_to_binary(self, h):
+        """
+        :param h: Hex value to decode 
+        :return: binary in string format
+        """
         return ''.join(self.byte_to_binary(ord(b)) for b in binascii.unhexlify(h))
 
     def byte_to_hex( self, byteStr ):
@@ -61,6 +65,26 @@ class byte_opperations(object):
         #    return ''.join( hex ).strip()        
 
         return ''.join( [ "%02X " % ord( x ) for x in byteStr ] ).strip()
+
+    def int_to_bin(self, i, fill=0):
+        """
+        Turns a int to a direct bin conversion as a string with out 0b
+        :param i: int to parse
+        :param fill: optional field to zfill with zeros
+        :return: string buffer of binary data
+        
+        """
+        bin_data = format(i, 'b')
+        return bin_data
+
+    def bin_to_byte(self, i):
+        """
+        converts a binary string to a hex byte char
+        :param i: binary string
+        :return: hex char
+        """
+        hex = chr(int(str(i), 2))
+        return hex
 
 class buffer(object):
 

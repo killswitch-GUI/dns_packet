@@ -30,9 +30,6 @@ import binascii
 import socket
 import dns_helpers
 
-
-
-
 class dns_encode_struct(dns_helpers.byte_opperations, dns_helpers.buffer):
     """
     base class for all encode objects with
@@ -208,16 +205,21 @@ class dns_encode_struct(dns_helpers.byte_opperations, dns_helpers.buffer):
 
     def __init__(self, verbose=False):
         """
-        populates init.
+        __init__ class
+        :param verbose: enable verbose mode
         """
         self.verbose = False
         dns_helpers.byte_opperations.__init__(self)
         dns_helpers.buffer.__init__(self)
 
-
     def pack_udp(self, source_port, destination_port, length, checksum):
         """
-        pack a udp packet and return the object.
+        Packs a UDP buffer for a raw return packet structure. 
+        :param source_port: source udp port
+        :param destination_port: destination udp port
+        :param length: total length of the udp packet in bytes
+        :param checksum: crc_32 checksum data
+        :return: NONE
         """
         self.pack_buffer(source_port, 'H')           # Source Port. 16 bits.
         self.increment_pointer(self.TYPE_CODE['H'])
@@ -226,7 +228,84 @@ class dns_encode_struct(dns_helpers.byte_opperations, dns_helpers.buffer):
         self.pack_buffer(length, 'H')                # UDP and Data Length. 16 bits.
         self.increment_pointer(self.TYPE_CODE['H'])
         self.pack_buffer(checksum, 'H')              # Checksum. 16 bits.
-        self.increment_pointer(self.TYPE_CODE['H'])  
+        self.increment_pointer(self.TYPE_CODE['H'])
+
+    def _pack_dns_identification(self, identification_id):
+        """
+        Packs the required dns request return identification_id
+        
+        :param int identification_id: 16 bit id to match responses
+        :return: NONE
+        """
+        self.pack_buffer(identification_id, 'H')   # id. 16 bits.
+        self.increment_pointer(self.TYPE_CODE['H'])
+
+    def _pack_dns_upper_codes(self, qr, opcode, aa, tc, rd):
+        """
+        Packs the required codes into binary data, converts to hex and packs the buffer.
+        
+        :param int qr: Query/Response
+        :param int opcode: Operation code to be conducted
+        :param int aa: Authoritative Answer
+        :param int tc: Truncated
+        :param int rd: Recursion Desired
+        :return: NONE
+        """
+        qr = self.int_to_bin(qr)
+        opcode = self.int_to_bin(opcode)
+        aa = self.int_to_bin(aa)
+        tc = self.int_to_bin(tc)
+        rd = self.int_to_bin(rd)
+        upper_code = qr + opcode + aa + tc + rd
+        upper_code = self.bin_to_byte(upper_code)
+        self.pack_buffer(upper_code, 'B')           # Pack 8 bits
+        self.increment_pointer(self.TYPE_CODE['B'])
+
+    def _pack_dns_lower_codes(self, ra, z, ad, cd, rcode):
+        """
+        Packs the required codes into binary data, converts to hex and packs the buffer.
+        
+        :param int ra: Recursion Available
+        :param int z: 
+        :param int ad: Authenticated data
+        :param int cd: Checking Disabled
+        :param int rcode: Return code
+        :return: NONE
+        """
+        ra = self.int_to_bin(ra)
+        z = self.int_to_bin(z)
+        ad = self.int_to_bin(ad)
+        cd = self.int_to_bin(cd)
+        rcode = self.int_to_bin(rcode)
+        lower_code = ra + z + ad + cd + rcode
+        lower_code = self.bin_to_byte(lower_code)
+        self.pack_buffer(lower_code, 'B')
+        self.increment_pointer(self.TYPE_CODE['B'])
+
+    def _pack_dns_total_questions(self, questions):
+        """
+        Total number of questions to be sent.
+        
+        :param int questions: number of questions
+        :return: NONE
+        """
+        self.pack_buffer(questions, 'H')
+        self.increment_pointer(self.TYPE_CODE['H'])
+
+    def _pack_dns_total_answer_rr(self, answers):
+        """
+        Total number of entries in the answer resource record list that were returned.
+        
+        :param int answers: Total Answer RRs 
+        :return: NONE
+        """
+        self.pack_buffer(answers, 'H')
+        self.increment_pointer(self.TYPE_CODE['H'])
+
+
+
+
+
 
 
 
